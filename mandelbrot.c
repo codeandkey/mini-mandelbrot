@@ -29,7 +29,7 @@
 
 /* mandelbrot generation parameters */
 
-#define MBR_MAX_ITERATIONS 256
+#define MBR_MAX_ITERATIONS 128
 #define MBR_DIVERGE_THRESHOLD 4
 
 #define BOUND_LEFT -2.5
@@ -37,7 +37,7 @@
 #define BOUND_TOP 1
 #define BOUND_BOTTOM -1
 
-#define PBITS 128
+#define PBITS 512
 
 /* thread and calculation parameters */
 
@@ -290,9 +290,6 @@ void start_mandelbrot(void) {
 		pthread_mutex_unlock(&live_threads_mutex);
 	}
 
-	/* we can assume that each thread will take roughly the same amt of time to complete, so we
-	 * won't worry about switching inactive threads to help with other tasks */
-
 	for (int i = 0; i < THR_MAX_ACTIVE; ++i) {
 		p = malloc(sizeof *p);
 
@@ -358,7 +355,7 @@ void compute_mandelbrot_sub(int left, int right, int top, int bottom) {
 				mpfr_sub(dist, dist, dist2, MPFR_RNDD);
 				mpfr_sub(rt, dist, dist2, MPFR_RNDD);
 				mpfr_add(rt, rt, inp.r, MPFR_RNDD);
-				
+
 				mpfr_mul(cur.i, cur.r, cur.i, MPFR_RNDD);
 				mpfr_mul_d(cur.i, cur.i, 2.0, MPFR_RNDD);
 				mpfr_add(cur.i, cur.i, inp.i, MPFR_RNDD);
@@ -466,6 +463,13 @@ void key_callback(GLFWwindow* win, int key, int scancode, int action, int mods) 
 		mpfr_add(next_bb, bound_bottom, vdiff, MPFR_RNDD);
 		mpfr_sub(next_bt, bound_top, vdiff, MPFR_RNDD);
 		break;
+	default:
+		mpfr_clear(next_bl);
+		mpfr_clear(next_br);
+		mpfr_clear(next_bb);
+		mpfr_clear(hdiff);
+		mpfr_clear(vdiff);
+		return;
 	}
 
 	mpfr_set(bound_left, next_bl, MPFR_RNDD);
