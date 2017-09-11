@@ -314,6 +314,13 @@ void start_mandelbrot(void) {
 }
 
 void compute_mandelbrot_sub(int left, int right, int top, int bottom) {
+	int sect_width = 1 + right - left, sect_height = 1 + top - bottom;
+	pixel temp_pixbuf[sect_width * sect_height];
+
+	memset(temp_pixbuf, 0xFF, sect_width * sect_height * sizeof *temp_pixbuf); /* whiteout */
+
+	/* because we migrate to a local pixbuf we won't be able to determine overlapping thread sectors at runtime */
+
 	for (int y = bottom; y <= top; ++y) {
 		for (int x = left; x <= right; ++x) {
 			int diverge = 0, i;
@@ -367,20 +374,7 @@ void compute_mandelbrot_sub(int left, int right, int top, int bottom) {
 			}
 
 			/* choose color from palette, where i=MBR_MAX_ITERATIONS should be black */
-			pthread_mutex_lock(&pixbuf_mutex);
-
-			if (memcmp(pixbuf + (y * WIDTH + x), &pix_white, sizeof pix_white)) {
-				/* this sector is already being worked on or done */
-				pthread_mutex_unlock(&pixbuf_mutex);
-				mpfr_clear(cur.r);
-				mpfr_clear(cur.i);
-				mpfr_clear(inp.r);
-				mpfr_clear(inp.i);
-				return;
-			}
-
-			pixbuf[y * WIDTH + x] = get_color(i);
-			pthread_mutex_unlock(&pixbuf_mutex);
+			temp_pixbuf[(y - bottom) * sect_width + (x - left)] = get_color(i);
 
 			mpfr_clear(cur.r);
 			mpfr_clear(cur.i);
@@ -388,6 +382,16 @@ void compute_mandelbrot_sub(int left, int right, int top, int bottom) {
 			mpfr_clear(inp.i);
 		}
 	}
+
+	/* copy local pixbuf to main */
+	pthread_mutex_lock(&pixbuf_mutex);
+
+	/* use memcpy per-row */
+	for (int y = bottom; y <= top; ++y) {
+		memcpy(pixbuf + y * WIDTH + left, temp_pixbuf + (y - bottom) * sect_width, sect_width * sizeof *temp_pixbuf);
+	}
+
+	pthread_mutex_unlock(&pixbuf_mutex);
 }
 
 pixel get_color(int ind) {
